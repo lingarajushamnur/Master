@@ -3,7 +3,7 @@ name: Deploy to QA
 on:
   push:
     branches:
-      - main
+      - main  # Change to qa if you're using qa branch
 
 jobs:
   deploy:
@@ -16,18 +16,32 @@ jobs:
     - name: Install Salesforce CLI
       run: npm install sfdx-cli --global
 
-    - name: Authenticate to Salesforce
+    - name: Create key file
+      run: echo "${{ secrets.SF_PRIVATE_KEY }}" > server.key
+
+    - name: Authenticate to Salesforce via JWT
       run: |
-        echo "${{ secrets.SF_PRIVATE_KEY }}" > server.key
-        sfdx auth:jwt:grant \
+        sfdx force:auth:jwt:grant \
           --clientid ${{ secrets.SF_CONSUMER_KEY }} \
           --jwtkeyfile server.key \
           --username ${{ secrets.SF_USERNAME }} \
           --instanceurl ${{ secrets.SF_INSTANCE_URL }} \
           --setalias deployOrg
+          
         sfdx force:org:list
 
-    - name: Deploy to QA Org
+    - name: Deploy to QA Org (Check Only)
       run: |
-        sfdx force:source:deploy -p force-app -u deployOrg --wait=10 --checkonly
-        sfdx force:source:deploy -p force-app -u deployOrg --wait=10 --testlevel RunLocalTests
+        sfdx force:source:deploy \
+          -p force-app \
+          -u deployOrg \
+          --wait=10 \
+          --checkonly
+
+    - name: Deploy to QA Org (Actual)
+      run: |
+        sfdx force:source:deploy \
+          -p force-app \
+          -u deployOrg \
+          --wait=10 \
+          --testlevel RunLocalTests

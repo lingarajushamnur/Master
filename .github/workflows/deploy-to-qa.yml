@@ -24,5 +24,4 @@ jobs:
     
     - name: Deploy to QA Org
       run: |
-        sfdx force:source:deploy -p force-app -u ${{ secrets.SF_USERNAME }} --wait 10 --checkonly
-        sfdx force:source:deploy -p force-app -u ${{ secrets.SF_USERNAME }} --wait 10 --testlevel RunLocalTests
+        sfdx force:source:deploy -p force-app -u ${{ secrets.SF_USERNAME }} --wait=10 --testlevel=RunLocalTests

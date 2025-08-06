@@ -1,36 +1,36 @@
-name: Salesforce Deploy Using JWT
+name: Deploy to Salesforce on PR Merge
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
 
 jobs:
-  deploy-to-salesforce:
+  deploy:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Checkout source code
+        uses: actions/checkout@v3
 
-    - name: Install Salesforce CLI
-      run: |
-        npm install --global @salesforce/cli
+      - name: Install Salesforce CLI
+        uses: salesforcecli/github-action@v1
 
-    - name: Create server.key file
-      run: |
-        echo "${{ secrets.SF_JWT_KEY }}" > server.key
+      - name: Authenticate to Salesforce
+        run: |
+          sf org login jwt \
+            --client-id ${{ secrets.SF_CLIENT_ID }} \
+            --jwt-key-file server.key \
+            --username ${{ secrets.SF_USERNAME }} \
+            --alias jwt-org \
+            --instance-url https://login.salesforce.com
 
-    - name: Authenticate with Salesforce (JWT)
-      run: |
-        sf org login jwt \
-          --client-id "${{ secrets.SF_CONSUMER_KEY }}" \
-          --jwt-key-file server.key \
-          --username "${{ secrets.SF_USERNAME }}" \
-          --instance-url "${{ secrets.SF_INSTANCE_URL }}" \
-          --alias jwt-org \
-          --set-default
-
-    - name: Deploy source to org
-      run: |
-        sf project deploy start --source-dir force-app --target-org jwt-org --wait 10 --test-level NoTestRun
+      - name: Deploy to Salesforce (No Tests)
+        run: |
+          sf project deploy start \
+            --source-dir force-app \
+            --target-org jwt-org \
+            --test-level NoTestRun \
+            --wait 10

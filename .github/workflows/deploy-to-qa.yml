@@ -1,47 +1,36 @@
-name: Deploy to QA
+name: Salesforce Deploy Using JWT
 
 on:
   push:
     branches:
-      - main  # Change to qa if you're using qa branch
+      - main
 
 jobs:
-  deploy:
+  deploy-to-salesforce:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Checkout repo
+      uses: actions/checkout@v4
 
     - name: Install Salesforce CLI
-      run: npm install sfdx-cli --global
-
-    - name: Create key file
-      run: echo "${{ secrets.SF_PRIVATE_KEY }}" > server.key
-
-    - name: Authenticate to Salesforce via JWT
       run: |
-        sfdx force:auth:jwt:grant \
-          --clientid ${{ secrets.SF_CONSUMER_KEY }} \
-          --jwtkeyfile server.key \
-          --username ${{ secrets.SF_USERNAME }} \
-          --instanceurl ${{ secrets.SF_INSTANCE_URL }} \
-          --setalias deployOrg
-          
-        sfdx force:org:list
+        npm install --global @salesforce/cli
 
-    - name: Deploy to QA Org (Check Only)
+    - name: Create server.key file
       run: |
-        sfdx force:source:deploy \
-          -p force-app \
-          -u deployOrg \
-          --wait=10 \
-          --checkonly
+        echo "${{ secrets.SF_JWT_KEY }}" > server.key
 
-    - name: Deploy to QA Org (Actual)
+    - name: Authenticate with Salesforce (JWT)
       run: |
-        sfdx force:source:deploy \
-          -p force-app \
-          -u deployOrg \
-          --wait=10 \
-          --testlevel RunLocalTests
+        sf org login jwt \
+          --client-id "${{ secrets.SF_CONSUMER_KEY }}" \
+          --jwt-key-file server.key \
+          --username "${{ secrets.SF_USERNAME }}" \
+          --instance-url "${{ secrets.SF_INSTANCE_URL }}" \
+          --alias jwt-org \
+          --set-default
+
+    - name: Deploy source to org
+      run: |
+        sf project deploy start --source-dir force-app --target-org jwt-org --wait 10 --test-level RunLocalTests

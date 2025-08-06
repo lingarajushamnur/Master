@@ -1,0 +1,35 @@
+<!-- collapsibleSectionsWithFlow.html -->
+<template>
+    <lightning-card title="Collapsible Sections with Flows">
+         <!-- Refresh button -->
+         <lightning-button label="Refresh" onclick={beginRefresh}></lightning-button>
+
+        <template for:each={sectionsWithIcons} for:item="section">
+            <div key={section.id} class="slds-m-bottom_medium">
+                <div class="slds-grid slds-grid_vertical-align-center">
+                    <div class="slds-col">
+                        <lightning-button-icon
+                            icon-name={section.buttonIconName}
+                            alternative-text='Expand'
+                            onclick={handleToggleSection}
+                            data-id={section.id}
+                            title= 'Expand'>
+                        </lightning-button-icon>
+                        &nbsp;  <lightning-formatted-rich-text value={section.title}></lightning-formatted-rich-text>
+
+
+                    </div>
+                    
+                </div>
+                <template if:true={section.isExpanded}>
+                    <div class="slds-m-top_medium">
+                        <lightning-flow
+                            flow-api-name={section.flowName}
+                            flow-input-variables={flowVariables}>
+                        </lightning-flow>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </lightning-card>
+</template>

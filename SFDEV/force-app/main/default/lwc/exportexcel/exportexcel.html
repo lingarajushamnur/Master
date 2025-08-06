@@ -1,0 +1,34 @@
+<template>
+    <lightning-card title="Account Records">
+        <div class="slds-m-around_medium">
+            <lightning-button onclick={exportToCSV} label="Export to CSV1" variant="brand"></lightning-button>
+        </div>
+        <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+            <thead>
+                <tr>
+                    <th scope="col" colspan="2">Account Info</th>
+                    <th scope="col" colspan="2">Test 1</th>
+                    <th scope="col">Test 3</th>
+                </tr>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Industry</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Phone</th>
+                    <th scope="col">Website</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template for:each={accounts} for:item="account">
+                    <tr key={account.Id}>
+                        <td>{account.Name}</td>
+                        <td>{account.Industry}</td>
+                        <td>{account.Type}</td>
+                        <td>{account.Phone}</td>
+                        <td>{account.Website}</td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+    </lightning-card>
+</template>

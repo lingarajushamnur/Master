@@ -1,0 +1,9 @@
+.progress-container {
+    display: flex;
+    flex-direction: column;
+    height: 300px; /* Adjust height as needed */
+}
+.progress-bar {
+    display: flex;
+    flex-direction: column;
+}

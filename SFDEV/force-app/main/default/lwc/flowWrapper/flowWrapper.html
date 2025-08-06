@@ -1,0 +1,12 @@
+<!-- flowWrapper.html -->
+<template>
+    <lightning-flow
+        aura:id="flowData"
+        onstatuschange={handleStatusChange}
+        onfinish={handleFlowFinish}
+        onerror={handleFlowError}
+        if:true={isFlowLoaded}
+        flow-api-name={flowName}>
+    </lightning-flow>
+    <lightning-spinner if:true={isLoading} size="large"></lightning-spinner>
+</template>

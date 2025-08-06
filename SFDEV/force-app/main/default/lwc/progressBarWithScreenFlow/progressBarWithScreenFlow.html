@@ -1,0 +1,12 @@
+<template>
+    <lightning-progress-indicator current-step={currentStep} type="path" variant="base">
+        <template for:each={steps} for:item="step">
+            <lightning-progress-step label={step.label} value={step.value} key={step.label}></lightning-progress-step>
+        </template>
+      </lightning-progress-indicator>
+      
+      <div class="slds-var-m-vertical_medium">
+        <lightning-button label="Back" class="slds-var-m-left_x-small" onclick={handlePrevious}></lightning-button>
+        <lightning-button variant="brand" class="slds-var-m-left_x-small" label={nextText} onclick={handleNext}></lightning-button>
+      </div>
+</template>

@@ -1,0 +1,16 @@
+.vertical-progress-bar {
+    display: flex;
+    flex-direction: column;
+}
+
+.progress-stage {
+    cursor: pointer;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+.progress-stage:hover {
+    background-color: #f0f0f0;
+}

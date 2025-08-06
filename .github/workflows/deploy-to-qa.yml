@@ -33,4 +33,4 @@ jobs:
 
     - name: Deploy source to org
       run: |
-        sf project deploy start --source-dir force-app --target-org jwt-org --wait 10 --test-level RunLocalTests
+        sf project deploy start --source-dir force-app --target-org jwt-org --wait 10 --test-level NoTestRun

@@ -1,9 +1,13 @@
-name: Salesforce Delta Deploy Using JWT
+name: Salesforce Deploy Using JWT
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize]  # Runs on PR creation and updates
     branches:
       - main
+  push:
+    branches:
+      - main  # Runs on merge to main
 
 jobs:
   deploy-to-salesforce:
@@ -13,7 +17,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0   # full history needed for delta
+        fetch-depth: 0  # full history needed for delta
 
     - name: Install SFDX CLI (classic) using official Action
       uses: salesforcecli/sfdx-action@v2
@@ -26,9 +30,60 @@ jobs:
     - name: Verify installed SFDX plugins
       run: sfdx plugins
 
-    - name: Debug changed files
+    - name: Debug changed files (PR only)
+      if: github.event_name == 'pull_request'
       run: |
         echo "Base SHA: ${{ github.event.pull_request.base.sha }}"
         echo "Head SHA: ${{ github.sha }}"
         echo "=== Changed files between base and head ==="
-        git diff --name-status ${{ github.event.pull_reques_
+        git diff --name-status ${{ github.event.pull_request.base.sha }} ${{ github.sha }}
+
+    - name: Create server.key file
+      run: |
+        echo "${{ secrets.SF_JWT_KEY }}" > server.key
+
+    - name: Authenticate with Salesforce (JWT)
+      run: |
+        sfdx force:auth:jwt:grant \
+          --clientid "${{ secrets.SF_CONSUMER_KEY }}" \
+          --jwtkeyfile server.key \
+          --username "${{ secrets.SF_USERNAME }}" \
+          --instanceurl "${{ secrets.SF_INSTANCE_URL }}" \
+          --setdefaultusername \
+          --setalias jwt-org
+
+    - name: Generate delta package (PR only)
+      if: github.event_name == 'pull_request'
+      run: |
+        mkdir delta
+        echo "Generating delta from ${{ github.event.pull_request.base.sha }} to HEAD"
+        sfdx sgd:source:delta \
+          --from ${{ github.event.pull_request.base.sha }} \
+          --to HEAD \
+          --output delta \
+          --source force-app \
+          --ignore .forceignore
+
+    - name: Debug delta output (PR only)
+      if: github.event_name == 'pull_request'
+      run: |
+        echo "=== Delta folder contents ==="
+        ls -R delta || true
+        echo "=== package.xml (if generated) ==="
+        cat delta/package/package.xml || echo "No package.xml generated"
+
+    - name: Deploy delta or full source
+      run: |
+        if [ -f "delta/package/package.xml" ]; then
+          echo "Deploying delta package..."
+          sfdx force:source:deploy \
+            --manifest delta/package/package.xml \
+            --wait 10 \
+            --testlevel NoTestRun
+        else
+          echo "✅ No delta package, deploying full source..."
+          sfdx force:source:deploy \
+            --source-dir force-app \
+            --target-org jwt-org \
+            --wait 10 \
+            --testlevel NoTestRun

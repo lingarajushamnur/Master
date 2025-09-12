@@ -13,23 +13,19 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0
-
-    - name: Fetch base branch
-      run: |
-        git fetch origin main
+        fetch-depth: 0   # full history so diff works
 
     - name: Install Salesforce CLI and sfdx-git-delta
       run: |
         npm install --global sfdx-cli
         sfdx plugins:install sfdx-git-delta
 
-    - name: Debug git log
+    - name: Debug changed files
       run: |
-        echo "=== Last 20 commits ==="
-        git --no-pager log --oneline -n 20
-        echo "=== Changed files compared to main ==="
-        git diff --name-status origin/main HEAD
+        echo "Base SHA: ${{ github.event.pull_request.base.sha }}"
+        echo "Head SHA: ${{ github.sha }}"
+        echo "=== Changed files between base and head ==="
+        git diff --name-status ${{ github.event.pull_request.base.sha }} ${{ github.sha }}
 
     - name: Create server.key file
       run: |
@@ -48,9 +44,10 @@ jobs:
     - name: Create delta package with sfdx-git-delta
       run: |
         mkdir delta
+        echo "Generating delta from ${{ github.event.pull_request.base.sha }} to HEAD"
         sfdx sgd:source:delta \
           --to HEAD \
-          --from origin/main \
+          --from ${{ github.event.pull_request.base.sha }} \
           --output delta \
           --ignore .forceignore
 

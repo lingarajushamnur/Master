@@ -15,12 +15,12 @@ jobs:
       with:
         fetch-depth: 0   # full history needed for delta
 
-    - name: Install Salesforce CLI and sfdx-git-delta
+    - name: Install SFDX CLI and sfdx-git-delta plugin
       run: |
         npm install -g sfdx-cli
         sfdx plugins:install sfdx-git-delta
 
-    - name: Verify installed sfdx plugins
+    - name: Verify installed SFDX plugins
       run: sfdx plugins
 
     - name: Debug changed files
@@ -44,7 +44,7 @@ jobs:
           --setdefaultusername \
           --setalias jwt-org
 
-    - name: Generate delta package with sfdx-git-delta
+    - name: Generate delta package
       run: |
         mkdir delta
         echo "Generating delta from ${{ github.event.pull_request.base.sha }} to HEAD"

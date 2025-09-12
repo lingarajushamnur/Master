@@ -1,7 +1,7 @@
-name: Salesforce Deploy Using JWT
+name: Salesforce Delta Deploy Using JWT
 
 on:
-  push:
+  pull_request:
     branches:
       - main
 
@@ -15,7 +15,7 @@ jobs:
 
     - name: Install Salesforce CLI
       run: |
-        npm install --global @salesforce/cli
+        npm install --global @salesforce/cli sfdx-git-delta
 
     - name: Create server.key file
       run: |
@@ -31,6 +31,26 @@ jobs:
           --alias jwt-org \
           --set-default
 
-    - name: Deploy source to org
+    # 🔹 Generate delta package
+    - name: Create delta package with sfdx-git-delta
       run: |
-        sf project deploy start --source-dir force-app --target-org jwt-org --wait 10 --test-level NoTestRun
+        mkdir delta
+        npx sgd generate delta \
+          --to "HEAD" \
+          --from "origin/main" \
+          --output delta \
+          --ignore .forceignore
+
+    # 🔹 Deploy only changed metadata
+    - name: Deploy delta changes to Salesforce
+      run: |
+        if [ -d "delta/force-app" ]; then
+          sf project deploy start \
+            --source-dir delta/force-app \
+            --manifest delta/package/package.xml \
+            --target-org jwt-org \
+            --wait 10 \
+            --test-level NoTestRun
+        else
+          echo "No changes to deploy."
+        fi

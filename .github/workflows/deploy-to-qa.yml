@@ -13,12 +13,23 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0   # 👈 needed for git diff
+        fetch-depth: 0
+
+    - name: Fetch base branch
+      run: |
+        git fetch origin main
 
     - name: Install Salesforce CLI and sfdx-git-delta
       run: |
         npm install --global sfdx-cli
         sfdx plugins:install sfdx-git-delta
+
+    - name: Debug git log
+      run: |
+        echo "=== Last 20 commits ==="
+        git --no-pager log --oneline -n 20
+        echo "=== Changed files compared to main ==="
+        git diff --name-status origin/main HEAD
 
     - name: Create server.key file
       run: |
@@ -38,8 +49,8 @@ jobs:
       run: |
         mkdir delta
         sfdx sgd:source:delta \
-          --to "HEAD" \
-          --from "origin/main" \
+          --to HEAD \
+          --from origin/main \
           --output delta \
           --ignore .forceignore
 

@@ -49,16 +49,10 @@ jobs:
           --to HEAD \
           --from ${{ github.event.pull_request.base.sha }} \
           --output delta \
+          --source force-app \
           --ignore .forceignore
 
-    - name: Deploy delta changes to Salesforce
+    - name: Debug delta output
       run: |
-        if [ -f "delta/package/package.xml" ]; then
-          echo "Deploying delta package..."
-          sfdx force:source:deploy \
-            --manifest delta/package/package.xml \
-            --wait 10 \
-            --testlevel NoTestRun
-        else
-          echo "✅ No changes to deploy."
-        fi
+        echo "=== Delta folder contents ==="
+        ls -R delta || true

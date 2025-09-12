@@ -2,12 +2,9 @@ name: Salesforce Deploy Using JWT
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]  # Runs on PR creation and updates
+    types: [opened, reopened, synchronize, closed]
     branches:
       - main
-  push:
-    branches:
-      - main  # Runs on merge to main
 
 jobs:
   deploy-to-salesforce:
@@ -30,14 +27,6 @@ jobs:
     - name: Verify installed SFDX plugins
       run: sfdx plugins
 
-    - name: Debug changed files (PR only)
-      if: github.event_name == 'pull_request'
-      run: |
-        echo "Base SHA: ${{ github.event.pull_request.base.sha }}"
-        echo "Head SHA: ${{ github.sha }}"
-        echo "=== Changed files between base and head ==="
-        git diff --name-status ${{ github.event.pull_request.base.sha }} ${{ github.sha }}
-
     - name: Create server.key file
       run: |
         echo "${{ secrets.SF_JWT_KEY }}" > server.key
@@ -52,8 +41,11 @@ jobs:
           --setdefaultusername \
           --setalias jwt-org
 
+    # ----------------------------
+    # PR Delta Deploy
+    # ----------------------------
     - name: Generate delta package (PR only)
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && github.event.action != 'closed'
       run: |
         mkdir delta
         echo "Generating delta from ${{ github.event.pull_request.base.sha }} to HEAD"
@@ -65,14 +57,15 @@ jobs:
           --ignore .forceignore
 
     - name: Debug delta output (PR only)
-      if: github.event_name == 'pull_request'
+      if: github.event_name == 'pull_request' && github.event.action != 'closed'
       run: |
         echo "=== Delta folder contents ==="
         ls -R delta || true
         echo "=== package.xml (if generated) ==="
         cat delta/package/package.xml || echo "No package.xml generated"
 
-    - name: Deploy delta or full source
+    - name: Deploy delta changes (PR only)
+      if: github.event_name == 'pull_request' && github.event.action != 'closed'
       run: |
         if [ -f "delta/package/package.xml" ]; then
           echo "Deploying delta package..."
@@ -81,9 +74,18 @@ jobs:
             --wait 10 \
             --testlevel NoTestRun
         else
-          echo "✅ No delta package, deploying full source..."
-          sfdx force:source:deploy \
-            --source-dir force-app \
-            --target-org jwt-org \
-            --wait 10 \
-            --testlevel NoTestRun
+          echo "✅ No delta package to deploy."
+        fi
+
+    # ----------------------------
+    # Full Deploy on PR merge
+    # ----------------------------
+    - name: Deploy full source on PR merge
+      if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+      run: |
+        echo "PR merged → deploying full source"
+        sfdx force:source:deploy \
+          --source-dir force-app \
+          --target-org jwt-org \
+          --wait 10 \
+          --testlevel NoTestRun

@@ -12,10 +12,13 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # 👈 needed so we can diff against main
 
-    - name: Install Salesforce CLI
+    - name: Install Salesforce CLI and sfdx-git-delta
       run: |
-        npm install --global @salesforce/cli sfdx-git-delta
+        npm install --global @salesforce/cli
+        sf plugins install sfdx-git-delta
 
     - name: Create server.key file
       run: |
@@ -31,26 +34,24 @@ jobs:
           --alias jwt-org \
           --set-default
 
-    # 🔹 Generate delta package
     - name: Create delta package with sfdx-git-delta
       run: |
         mkdir delta
-        npx sgd generate delta \
+        sf sgd:source:delta \
           --to "HEAD" \
           --from "origin/main" \
           --output delta \
           --ignore .forceignore
 
-    # 🔹 Deploy only changed metadata
     - name: Deploy delta changes to Salesforce
       run: |
-        if [ -d "delta/force-app" ]; then
+        if [ -f "delta/package/package.xml" ]; then
+          echo "Deploying delta package..."
           sf project deploy start \
-            --source-dir delta/force-app \
             --manifest delta/package/package.xml \
             --target-org jwt-org \
             --wait 10 \
             --test-level NoTestRun
         else
-          echo "No changes to deploy."
+          echo "✅ No changes to deploy."
         fi

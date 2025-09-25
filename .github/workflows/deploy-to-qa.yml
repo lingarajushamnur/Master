@@ -15,6 +15,8 @@ jobs:
     steps:
     - name: Checkout repo
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # important so we can diff history
 
     - name: Install Salesforce CLI
       run: |
@@ -34,6 +36,19 @@ jobs:
           --alias jwt-org \
           --set-default
 
-    - name: Deploy source to org
+    - name: Find changed files in the merged PR
+      id: diff
       run: |
-        sf project deploy start --source-dir force-app --target-org jwt-org --wait 10 --test-level NoTestRun
+        echo "PR base: ${{ github.event.pull_request.base.sha }}"
+        echo "PR head: ${{ github.event.pull_request.head.sha }}"
+        git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > changed_files.txt
+        cat changed_files.txt
+
+    - name: Deploy only changed files
+      run: |
+        while IFS= read -r file; do
+          if [[ $file == force-app/* ]]; then
+            echo "Deploying $file ..."
+            sf project deploy start --manifest $file --target-org jwt-org --wait 10 --test-level NoTestRun
+          fi
+        done < changed_files.txt

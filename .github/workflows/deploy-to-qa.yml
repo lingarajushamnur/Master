@@ -16,7 +16,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0   # important so we can diff history
+        fetch-depth: 0   # Needed so we can diff PR base vs head
 
     - name: Install Salesforce CLI
       run: |
@@ -36,19 +36,28 @@ jobs:
           --alias jwt-org \
           --set-default
 
-    - name: Find changed files in the merged PR
-      id: diff
+    - name: Build delta folder
       run: |
-        echo "PR base: ${{ github.event.pull_request.base.sha }}"
-        echo "PR head: ${{ github.event.pull_request.head.sha }}"
+        mkdir delta
+        echo "Comparing commits..."
         git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > changed_files.txt
         cat changed_files.txt
 
-    - name: Deploy only changed files
-      run: |
         while IFS= read -r file; do
           if [[ $file == force-app/* ]]; then
-            echo "Deploying $file ..."
-            sf project deploy start --manifest $file --target-org jwt-org --wait 10 --test-level NoTestRun
+            echo "Copying $file into delta..."
+            mkdir -p delta/$(dirname "$file")
+            cp "$file" delta/"$file"
           fi
         done < changed_files.txt
+
+        echo "Delta contents:"
+        find delta
+
+    - name: Deploy delta to Salesforce
+      run: |
+        if [ -d "delta/force-app" ]; then
+          sf project deploy start --source-dir delta/force-app --target-org jwt-org --wait 10 --test-level NoTestRun
+        else
+          echo "No deployable changes detected."
+        fi

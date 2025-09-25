@@ -16,7 +16,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0   # Needed so we can diff PR base vs head
+        fetch-depth: 0   # Needed for git diff
 
     - name: Install Salesforce CLI
       run: |
@@ -36,28 +36,74 @@ jobs:
           --alias jwt-org \
           --set-default
 
-    - name: Build delta folder
+    - name: Build package.xml from changed files
       run: |
-        mkdir delta
-        echo "Comparing commits..."
+        echo "Finding changed files..."
         git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > changed_files.txt
         cat changed_files.txt
 
-        while IFS= read -r file; do
-          if [[ $file == force-app/* ]]; then
-            echo "Copying $file into delta..."
-            mkdir -p delta/$(dirname "$file")
-            cp "$file" delta/"$file"
+        # Start package.xml
+        echo '<?xml version="1.0" encoding="UTF-8"?>' > package.xml
+        echo '<Package xmlns="http://soap.sforce.com/2006/04/metadata">' >> package.xml
+
+        addType() {
+          members=$1
+          type=$2
+          if [ -n "$members" ]; then
+            echo "  <types>" >> package.xml
+            for m in $members; do
+              echo "    <members>${m}</members>" >> package.xml
+            done
+            echo "    <name>${type}</name>" >> package.xml
+            echo "  </types>" >> package.xml
           fi
-        done < changed_files.txt
+        }
 
-        echo "Delta contents:"
-        find delta
+        # Apex Classes
+        apex_classes=$(grep "force-app/main/default/classes/.*\.cls$" changed_files.txt | sed 's#.*/##;s#\.cls$##')
+        addType "$apex_classes" "ApexClass"
 
-    - name: Deploy delta to Salesforce
+        # Triggers
+        apex_triggers=$(grep "force-app/main/default/triggers/.*\.trigger$" changed_files.txt | sed 's#.*/##;s#\.trigger$##')
+        addType "$apex_triggers" "ApexTrigger"
+
+        # Lightning Web Components
+        lwc_components=$(grep "force-app/main/default/lwc/[^/]*" changed_files.txt | cut -d'/' -f5 | sort -u)
+        addType "$lwc_components" "LightningComponentBundle"
+
+        # Aura Components
+        aura_components=$(grep "force-app/main/default/aura/[^/]*" changed_files.txt | cut -d'/' -f5 | sort -u)
+        addType "$aura_components" "AuraDefinitionBundle"
+
+        # Objects
+        objects=$(grep "force-app/main/default/objects/[^/]*/.*object-meta.xml" changed_files.txt | cut -d'/' -f5 | sort -u)
+        addType "$objects" "CustomObject"
+
+        # Tabs
+        tabs=$(grep "force-app/main/default/tabs/.*tab-meta.xml" changed_files.txt | sed 's#.*/##;s#\.tab-meta.xml$##')
+        addType "$tabs" "CustomTab"
+
+        # Profiles
+        profiles=$(grep "force-app/main/default/profiles/.*profile-meta.xml" changed_files.txt | sed 's#.*/##;s#\.profile-meta.xml$##')
+        addType "$profiles" "Profile"
+
+        # Permission Sets
+        perms=$(grep "force-app/main/default/permissionsets/.*permissionset-meta.xml" changed_files.txt | sed 's#.*/##;s#\.permissionset-meta.xml$##')
+        addType "$perms" "PermissionSet"
+
+        # Add more metadata types as needed...
+
+        # End of package.xml
+        echo "  <version>59.0</version>" >> package.xml
+        echo "</Package>" >> package.xml
+
+        echo "Generated package.xml:"
+        cat package.xml
+
+    - name: Deploy with manifest
       run: |
-        if [ -d "delta/force-app" ]; then
-          sf project deploy start --source-dir delta/force-app --target-org jwt-org --wait 10 --test-level NoTestRun
+        if grep -q "<types>" package.xml; then
+          sf project deploy start --manifest package.xml --target-org jwt-org --wait 10 --test-level NoTestRun
         else
-          echo "No deployable changes detected."
+          echo "No deployable metadata changes found."
         fi

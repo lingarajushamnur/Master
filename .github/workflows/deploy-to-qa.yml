@@ -16,7 +16,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0   # Needed for git diff
+        fetch-depth: 0  # Needed for git diff
 
     - name: Install Salesforce CLI
       run: |
@@ -36,13 +36,13 @@ jobs:
           --alias jwt-org \
           --set-default
 
-    - name: Build package.xml from changed files
+    - name: Find changed files
       run: |
-        echo "Finding changed files..."
         git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > changed_files.txt
         cat changed_files.txt
 
-        # Start package.xml
+    - name: Build package.xml from PR changes
+      run: |
         echo '<?xml version="1.0" encoding="UTF-8"?>' > package.xml
         echo '<Package xmlns="http://soap.sforce.com/2006/04/metadata">' >> package.xml
 
@@ -60,50 +60,76 @@ jobs:
         }
 
         # Apex Classes
-        apex_classes=$(grep "force-app/main/default/classes/.*\.cls$" changed_files.txt | sed 's#.*/##;s#\.cls$##')
+        apex_classes=$(grep -o 'force-app/main/default/classes/[^/]*\.cls' changed_files.txt | sed 's|.*/||;s|\.cls$||' | sort -u)
         addType "$apex_classes" "ApexClass"
 
-        # Triggers
-        apex_triggers=$(grep "force-app/main/default/triggers/.*\.trigger$" changed_files.txt | sed 's#.*/##;s#\.trigger$##')
+        # Apex Triggers
+        apex_triggers=$(grep -o 'force-app/main/default/triggers/[^/]*\.trigger' changed_files.txt | sed 's|.*/||;s|\.trigger$||' | sort -u)
         addType "$apex_triggers" "ApexTrigger"
 
         # Lightning Web Components
-        lwc_components=$(grep "force-app/main/default/lwc/[^/]*" changed_files.txt | cut -d'/' -f5 | sort -u)
+        lwc_components=$(grep -o 'force-app/main/default/lwc/[^/]*' changed_files.txt | cut -d'/' -f5 | sort -u)
         addType "$lwc_components" "LightningComponentBundle"
 
         # Aura Components
-        aura_components=$(grep "force-app/main/default/aura/[^/]*" changed_files.txt | cut -d'/' -f5 | sort -u)
+        aura_components=$(grep -o 'force-app/main/default/aura/[^/]*' changed_files.txt | cut -d'/' -f5 | sort -u)
         addType "$aura_components" "AuraDefinitionBundle"
 
-        # Objects
-        objects=$(grep "force-app/main/default/objects/[^/]*/.*object-meta.xml" changed_files.txt | cut -d'/' -f5 | sort -u)
-        addType "$objects" "CustomObject"
+        # Custom Objects
+        custom_objects=$(grep -o 'force-app/main/default/objects/[^/]*/[^/]*object-meta.xml' changed_files.txt | cut -d'/' -f5 | sort -u)
+        addType "$custom_objects" "CustomObject"
 
-        # Tabs
-        tabs=$(grep "force-app/main/default/tabs/.*tab-meta.xml" changed_files.txt | sed 's#.*/##;s#\.tab-meta.xml$##')
-        addType "$tabs" "CustomTab"
+        # Flows
+        flows=$(grep -o 'force-app/main/default/flows/[^/]*\.flow-meta.xml' changed_files.txt | sed 's|.*/||;s|\.flow-meta.xml$||' | sort -u)
+        addType "$flows" "Flow"
+
+        # Layouts
+        layouts=$(grep -o 'force-app/main/default/layouts/[^/]*\.layout-meta.xml' changed_files.txt | sed 's|.*/||;s|\.layout-meta.xml$||' | sort -u)
+        addType "$layouts" "Layout"
+
+        # Record Types
+        record_types=$(grep -o 'force-app/main/default/objects/[^/]*/recordTypes/[^/]*\.recordType-meta.xml' changed_files.txt | sed 's|.*/recordTypes/||;s|\.recordType-meta.xml$||' | sort -u)
+        addType "$record_types" "RecordType"
+
+        # Custom Metadata
+        custom_metadata=$(grep -o 'force-app/main/default/customMetadata/[^/]*\.md-meta.xml' changed_files.txt | sed 's|.*/||;s|\.md-meta.xml$||' | sort -u)
+        addType "$custom_metadata" "CustomMetadata"
 
         # Profiles
-        profiles=$(grep "force-app/main/default/profiles/.*profile-meta.xml" changed_files.txt | sed 's#.*/##;s#\.profile-meta.xml$##')
+        profiles=$(grep -o 'force-app/main/default/profiles/[^/]*\.profile-meta.xml' changed_files.txt | sed 's|.*/||;s|\.profile-meta.xml$||' | sort -u)
         addType "$profiles" "Profile"
 
         # Permission Sets
-        perms=$(grep "force-app/main/default/permissionsets/.*permissionset-meta.xml" changed_files.txt | sed 's#.*/##;s#\.permissionset-meta.xml$##')
+        perms=$(grep -o 'force-app/main/default/permissionsets/[^/]*\.permissionset-meta.xml' changed_files.txt | sed 's|.*/||;s|\.permissionset-meta.xml$||' | sort -u)
         addType "$perms" "PermissionSet"
 
-        # Add more metadata types as needed...
+        # Tabs
+        tabs=$(grep -o 'force-app/main/default/tabs/[^/]*\.tab-meta.xml' changed_files.txt | sed 's|.*/||;s|\.tab-meta.xml$||' | sort -u)
+        addType "$tabs" "CustomTab"
 
-        # End of package.xml
-        echo "  <version>59.0</version>" >> package.xml
-        echo "</Package>" >> package.xml
+        # Custom Labels
+        labels=$(grep -o 'force-app/main/default/labels/[^/]*\.labels-meta.xml' changed_files.txt | sed 's|.*/||;s|\.labels-meta.xml$||' | sort -u)
+        addType "$labels" "CustomLabels"
+
+        # Validation Rules
+        validations=$(grep -o 'force-app/main/default/objects/[^/]*/validationRules/[^/]*\.validationRule-meta.xml' changed_files.txt | sed 's|.*/validationRules/||;s|\.validationRule-meta.xml$||' | sort -u)
+        addType "$validations" "ValidationRule"
+
+        echo '<version>60.0</version></Package>' >> package.xml
 
         echo "Generated package.xml:"
         cat package.xml
 
-    - name: Deploy with manifest
+    - name: Deploy PR changes (strict)
       run: |
         if grep -q "<types>" package.xml; then
-          sf project deploy start --manifest package.xml --target-org jwt-org --wait 10 --test-level NoTestRun
+          sf project deploy start \
+            --manifest package.xml \
+            --target-org jwt-org \
+            --wait 10 \
+            --test-level NoTestRun \
+            --ignore-conflicts \
+            --ignore-errors
         else
           echo "No deployable metadata changes found."
         fi

@@ -1,12 +1,15 @@
 name: Salesforce Deploy Using JWT
 
 on:
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
       - main
 
 jobs:
   deploy-to-salesforce:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:

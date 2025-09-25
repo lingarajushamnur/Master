@@ -1,6 +1,7 @@
 trigger UpdateCountry on Contact (after delete,after insert,after undelete, after update) {
 
 set<Id>AcctIds=new set<Id>();
+//test
 
 if(trigger.isInsert||trigger.isUpdate||trigger.isUndelete){
       
